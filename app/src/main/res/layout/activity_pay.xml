@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/tv_back"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:background="@color/brand"
+        android:gravity="center_vertical"
+        android:paddingLeft="16dp"
+        android:text="返回  扫码支付"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_margin="16dp"
+        android:layout_weight="1"
+        android:background="@drawable/bg_card"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:id="@+id/tv_pay_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="待支付"
+            android:textColor="@color/brand"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_pay_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:gravity="center"
+            android:lineSpacingExtra="6dp"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp" />
+
+        <FrameLayout
+            android:id="@+id/fl_qr_box"
+            android:layout_width="244dp"
+            android:layout_height="244dp"
+            android:layout_marginTop="22dp"
+            android:background="@color/white"
+            android:padding="14dp">
+
+            <ImageView
+                android:id="@+id/iv_pay_qr"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@null"
+                android:scaleType="fitCenter" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/tv_pay_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:text="扫码后点击下方按钮完成测试支付"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_mock_success"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:layout_marginLeft="16dp"
+        android:layout_marginRight="16dp"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/bg_accent"
+        android:gravity="center"
+        android:text="我已扫码，模拟支付成功"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tv_to_history"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:layout_marginLeft="16dp"
+        android:layout_marginRight="16dp"
+        android:layout_marginBottom="16dp"
+        android:background="@drawable/bg_brand"
+        android:gravity="center"
+        android:text="查看历史订单"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+</LinearLayout>
