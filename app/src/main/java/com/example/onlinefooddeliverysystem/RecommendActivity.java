@@ -12,6 +12,7 @@ import com.example.onlinefooddeliverysystem.data.AiRecommendationResult;
 import com.example.onlinefooddeliverysystem.data.CartManager;
 import com.example.onlinefooddeliverysystem.data.DataRepository;
 import com.example.onlinefooddeliverysystem.data.SiliconFlowService;
+import com.example.onlinefooddeliverysystem.data.UserManager;
 import com.example.onlinefooddeliverysystem.model.FoodBean;
 import com.example.onlinefooddeliverysystem.model.ShopBean;
 import com.example.onlinefooddeliverysystem.util.FormatUtils;
@@ -34,16 +35,29 @@ public class RecommendActivity extends AppCompatActivity {
     }
 
     private void initView() {
-        TextView tvBack = findViewById(R.id.tv_back);
-        TextView tvAdd = findViewById(R.id.tv_add_recommend);
         etPrompt = findViewById(R.id.et_prompt);
         tvResult = findViewById(R.id.tv_result);
         tvRun = findViewById(R.id.tv_run_recommend);
+        TextView tvAdd = findViewById(R.id.tv_add_recommend);
 
-        tvBack.setOnClickListener(v -> finish());
+        bindBottomNav();
+
         tvRun.setOnClickListener(v -> runRecommend());
         tvAdd.setOnClickListener(v -> addRecommendationToCart());
-        tvResult.setText("输入你的用餐需求，例如：两个人，想吃辣，预算50。AI 会从当前菜单中推荐店铺和菜品。");
+        tvResult.setText("输入你的用餐需求，例如：两个人、想吃辣、预算50，AI 会从当前菜单里推荐店铺和菜品。");
+    }
+
+    private void bindBottomNav() {
+        TextView tvHome = findViewById(R.id.nav_home);
+        TextView tvRecommend = findViewById(R.id.nav_recommend);
+        TextView tvOrder = findViewById(R.id.nav_order);
+        TextView tvMine = findViewById(R.id.nav_mine);
+
+        tvHome.setOnClickListener(v -> startActivity(new Intent(this, MainActivity.class)));
+        tvOrder.setOnClickListener(v -> startActivity(new Intent(this, OrderCenterActivity.class)));
+        tvMine.setOnClickListener(v -> startActivity(new Intent(this, MyActivity.class)));
+
+        tvRecommend.setSelected(true);
     }
 
     private void runRecommend() {
@@ -86,16 +100,23 @@ public class RecommendActivity extends AppCompatActivity {
         builder.append("推荐店铺：").append(recommendedShop.getName()).append("\n\n");
         builder.append("推荐理由：").append(buildDisplayReason(result)).append("\n\n");
         builder.append("推荐菜品：\n");
+
         for (String foodName : result.getFoodNames()) {
             FoodBean food = DataRepository.findFoodByName(foodName);
             if (food != null) {
                 recommendedFoods.add(food);
                 total += food.getPrice();
                 builder.append("- ").append(food.getName()).append("  ").append(FormatUtils.price(food.getPrice())).append("\n");
-            } else {
-                builder.append("- ").append(foodName).append("（菜单中未匹配）\n");
             }
         }
+
+        if (recommendedFoods.isEmpty() && recommendedShop != null && !recommendedShop.getFoods().isEmpty()) {
+            FoodBean fallbackFood = recommendedShop.getFoods().get(0);
+            recommendedFoods.add(fallbackFood);
+            total += fallbackFood.getPrice();
+            builder.append("- ").append(fallbackFood.getName()).append("  ").append(FormatUtils.price(fallbackFood.getPrice())).append("\n");
+        }
+
         builder.append("\n预计合计：").append(FormatUtils.price(total));
         tvResult.setText(builder.toString());
     }
@@ -120,12 +141,16 @@ public class RecommendActivity extends AppCompatActivity {
     }
 
     private void addRecommendationToCart() {
+        if (!UserManager.getInstance().isLoggedIn(this)) {
+            startActivity(new Intent(this, LoginActivity.class));
+            return;
+        }
         if (recommendedFoods.isEmpty()) {
             Toast.makeText(this, "请先生成可加入购物车的推荐", Toast.LENGTH_SHORT).show();
             return;
         }
         for (FoodBean food : recommendedFoods) {
-            CartManager.getInstance().addFood(food);
+            CartManager.getInstance().addFood(recommendedShop, food);
         }
         Toast.makeText(this, "已加入购物车", Toast.LENGTH_SHORT).show();
         Intent intent = new Intent(this, ShopDetailActivity.class);

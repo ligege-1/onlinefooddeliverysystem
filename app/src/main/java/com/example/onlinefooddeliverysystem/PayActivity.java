@@ -19,51 +19,66 @@ import com.google.zxing.WriterException;
 
 public class PayActivity extends AppCompatActivity {
     private OrderBean order;
+    private View rootView;
     private TextView tvTitle;
     private TextView tvHint;
     private TextView tvMockSuccess;
     private FrameLayout flQrBox;
+    private boolean paid;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_pay);
         order = (OrderBean) getIntent().getSerializableExtra("order");
+
+        rootView = findViewById(R.id.pay_root);
         TextView tvBack = findViewById(R.id.tv_back);
         TextView tvInfo = findViewById(R.id.tv_pay_info);
-        TextView tvHistory = findViewById(R.id.tv_to_history);
         ImageView ivQr = findViewById(R.id.iv_pay_qr);
         tvTitle = findViewById(R.id.tv_pay_title);
         tvHint = findViewById(R.id.tv_pay_hint);
         tvMockSuccess = findViewById(R.id.tv_mock_success);
         flQrBox = findViewById(R.id.fl_qr_box);
 
-        tvBack.setOnClickListener(v -> finish());
+        tvBack.setOnClickListener(v -> {
+            if (paid) {
+                returnHome();
+            } else {
+                finish();
+            }
+        });
+
         if (order != null) {
             tvInfo.setText(order.getShopName() + "\n" + FormatUtils.price(order.getTotalPrice()) + "\n" + order.getCreatedAt());
             showQrCode(ivQr, buildQrContent(order));
-            if ("已支付".equals(order.getStatus())) {
-                showPaidState(false);
-            }
         } else {
             showQrCode(ivQr, "PAY_SUCCESS");
         }
-        tvMockSuccess.setOnClickListener(v -> showPaidState(true));
-        tvHistory.setOnClickListener(v -> {
-            Intent intent = new Intent(this, OrdersActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            startActivity(intent);
-        });
+
+        tvMockSuccess.setOnClickListener(v -> showPaidState());
     }
 
-    private void showPaidState(boolean saveStatus) {
-        if (saveStatus && order != null && order.getId() > 0) {
+    private void showPaidState() {
+        if (paid) {
+            return;
+        }
+        paid = true;
+        if (order != null && order.getId() > 0) {
             new OrderDbHelper(this).updateStatus(order.getId(), "已支付");
         }
         tvTitle.setText("支付成功");
-        tvHint.setText("测试支付已完成，可以查看历史订单");
+        tvHint.setText("点击页面任意位置返回首页");
         flQrBox.setVisibility(View.GONE);
         tvMockSuccess.setVisibility(View.GONE);
+        rootView.setOnClickListener(v -> returnHome());
+    }
+
+    private void returnHome() {
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(intent);
+        finish();
     }
 
     private void showQrCode(ImageView ivQr, String content) {

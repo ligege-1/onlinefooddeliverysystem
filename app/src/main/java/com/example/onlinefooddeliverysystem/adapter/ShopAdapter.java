@@ -10,7 +10,9 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.onlinefooddeliverysystem.R;
+import com.example.onlinefooddeliverysystem.data.AddressManager;
 import com.example.onlinefooddeliverysystem.model.ShopBean;
+import com.example.onlinefooddeliverysystem.util.DeliveryUtils;
 import com.example.onlinefooddeliverysystem.util.FormatUtils;
 
 import java.util.List;
@@ -38,11 +40,12 @@ public class ShopAdapter extends RecyclerView.Adapter<ShopAdapter.ShopViewHolder
     @Override
     public void onBindViewHolder(@NonNull ShopViewHolder holder, int position) {
         ShopBean shop = shops.get(position);
+        String address = AddressManager.getInstance().getCurrentAddress(holder.itemView.getContext());
         holder.ivShop.setImageResource(shop.getImageResId());
         holder.tvName.setText(shop.getName());
-        holder.tvCategory.setText(shop.getCategory() + " · " + shop.getDeliveryTime());
-        holder.tvScore.setText("评分 " + shop.getScore() + "  月售" + estimateSales(shop) + "+  人均 " + FormatUtils.price(averagePrice(shop)));
-        holder.tvPrice.setText("起送 " + FormatUtils.price(shop.getMinPrice()) + "  配送 " + FormatUtils.price(shop.getDeliveryFee()));
+        holder.tvCategory.setText(shop.getCategory() + " · " + DeliveryUtils.buildListDeliveryText(shop, address));
+        holder.tvScore.setText("评分 " + shop.getScore() + "  月售" + estimateSales(shop) + "+  人均 " + FormatUtils.price(estimatePerCapita(shop)));
+        holder.tvPrice.setText("起送" + FormatUtils.price(shop.getMinPrice()) + "  配送" + FormatUtils.price(shop.getDeliveryFee()));
         holder.tvDesc.setText(shop.getNotice());
         holder.itemView.setOnClickListener(v -> listener.onShopClick(shop));
     }
@@ -60,12 +63,14 @@ public class ShopAdapter extends RecyclerView.Adapter<ShopAdapter.ShopViewHolder
         return Math.max(100, sales / 10 * 10);
     }
 
-    private int averagePrice(ShopBean shop) {
+    private int estimatePerCapita(ShopBean shop) {
         int total = 0;
         for (int i = 0; i < shop.getFoods().size(); i++) {
             total += shop.getFoods().get(i).getPrice();
         }
-        return total / Math.max(1, shop.getFoods().size());
+        int averagePrice = total / Math.max(1, shop.getFoods().size());
+        int suggestedPerCapita = averagePrice + Math.max(3, shop.getDeliveryFee());
+        return Math.max(suggestedPerCapita, shop.getMinPrice() + 4);
     }
 
     static class ShopViewHolder extends RecyclerView.ViewHolder {

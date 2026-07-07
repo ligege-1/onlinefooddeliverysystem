@@ -12,7 +12,9 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.onlinefooddeliverysystem.R;
 import com.example.onlinefooddeliverysystem.data.CartManager;
+import com.example.onlinefooddeliverysystem.data.UserManager;
 import com.example.onlinefooddeliverysystem.model.FoodBean;
+import com.example.onlinefooddeliverysystem.model.ShopBean;
 import com.example.onlinefooddeliverysystem.util.FormatUtils;
 
 import java.util.List;
@@ -22,12 +24,18 @@ public class FoodAdapter extends RecyclerView.Adapter<FoodAdapter.FoodViewHolder
         void onFoodClick(FoodBean food);
 
         void onCartChanged();
+
+        void onCrossShopBlocked();
+
+        void onRequireLogin();
     }
 
+    private final ShopBean shop;
     private final List<FoodBean> foods;
     private final OnFoodActionListener listener;
 
-    public FoodAdapter(List<FoodBean> foods, OnFoodActionListener listener) {
+    public FoodAdapter(ShopBean shop, List<FoodBean> foods, OnFoodActionListener listener) {
+        this.shop = shop;
         this.foods = foods;
         this.listener = listener;
     }
@@ -45,15 +53,19 @@ public class FoodAdapter extends RecyclerView.Adapter<FoodAdapter.FoodViewHolder
         int count = CartManager.getInstance().getCount(food);
         holder.ivFood.setImageResource(food.getImageResId());
         holder.tvName.setText(food.getName());
-        holder.tvTaste.setText(food.getTaste() + " · 月售" + food.getSales());
-        holder.tvDesc.setText("近期推荐 · " + food.getDescription());
+        holder.tvTaste.setText(food.getTaste() + " | 月售 " + food.getSales());
+        holder.tvDesc.setText(food.getDescription());
         holder.tvPrice.setText(FormatUtils.price(food.getPrice()));
         holder.tvCount.setText(String.valueOf(count));
         holder.btnMinus.setVisibility(count > 0 ? View.VISIBLE : View.INVISIBLE);
         holder.tvCount.setVisibility(count > 0 ? View.VISIBLE : View.INVISIBLE);
         holder.itemView.setOnClickListener(v -> listener.onFoodClick(food));
         holder.btnAdd.setOnClickListener(v -> {
-            CartManager.getInstance().addFood(food);
+            if (!UserManager.getInstance().isLoggedIn(holder.itemView.getContext())) {
+                listener.onRequireLogin();
+                return;
+            }
+            CartManager.getInstance().addFood(shop, food);
             notifyItemChanged(holder.getBindingAdapterPosition());
             listener.onCartChanged();
         });

@@ -3,12 +3,16 @@ package com.example.onlinefooddeliverysystem.data;
 import android.os.Handler;
 import android.os.Looper;
 
+import com.example.onlinefooddeliverysystem.model.FoodBean;
+import com.example.onlinefooddeliverysystem.model.ShopBean;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -36,10 +40,16 @@ public class SiliconFlowService {
             return;
         }
 
+        AiRecommendationResult localResult = buildRuleBasedRecommendation(userPrompt);
+        if (localResult != null) {
+            callback.onSuccess(localResult);
+            return;
+        }
+
         executor.execute(() -> {
             try {
                 String responseText = requestRecommendation(userPrompt);
-                AiRecommendationResult result = parseResult(responseText);
+                AiRecommendationResult result = parseResult(userPrompt, responseText);
                 mainHandler.post(() -> callback.onSuccess(result));
             } catch (Exception e) {
                 mainHandler.post(() -> callback.onError("AI 服务暂时不可用：" + e.getMessage()));
@@ -79,12 +89,16 @@ public class SiliconFlowService {
     }
 
     private String buildSystemPrompt() {
-        return "你是校园外卖 App 的智能点餐助手。只能从用户给出的菜单里选择，不允许编造店铺或菜品。" +
-                "你必须只返回一个 JSON 对象，不要出现 user、assistant、Markdown、代码块或额外解释。" +
-                "必须使用英文双引号，不能使用中文引号，不能漏掉数组和对象的结束符。" +
-                "reason 中不要出现双引号。JSON 格式必须完全符合：" +
-                "{\"shopName\":\"店铺名\",\"foods\":[\"菜品1\",\"菜品2\"],\"reason\":\"80字以内推荐理由\"}" +
-                "foods 中的菜品名称必须和菜单里的菜品名称完全一致。";
+        return "你是校园外卖 App 的智能点餐助手。"
+                + "你只能从用户给出的菜单里选择店铺和菜品，不能编造不存在的店铺或菜品。"
+                + "如果用户只说清淡、健身、减脂、高蛋白、便宜、夜宵这类需求，你要按菜单内容做合理匹配。"
+                + "你必须只返回一个合法 JSON 对象，不能返回 Markdown、代码块、说明文字或多余字段。"
+                + "JSON 只允许包含 shopName、foods、reason 三个字段。"
+                + "foods 里的每个菜名必须和菜单中的原始菜名完全一致。"
+                + "reason 必须是真实推荐理由，不能写模板词、占位词，不能出现“80字以内推荐理由”这类句子。"
+                + "如果拿不准，请返回最匹配的一家店和 1 到 3 个真实菜品。"
+                + "返回格式："
+                + "{\"shopName\":\"真实店铺名\",\"foods\":[\"真实菜品名1\",\"真实菜品名2\"],\"reason\":\"真实推荐理由\"}";
     }
 
     private JSONObject message(String role, String content) throws JSONException {
@@ -94,29 +108,35 @@ public class SiliconFlowService {
         return message;
     }
 
-    private AiRecommendationResult parseResult(String content) throws JSONException {
+    private AiRecommendationResult parseResult(String userPrompt, String content) throws JSONException {
         String jsonText = extractJsonObject(content);
         try {
             JSONObject json = new JSONObject(jsonText);
-            String shopName = json.optString("shopName", "");
-            String reason = json.optString("reason", "已根据你的需求生成推荐。");
+            String shopName = json.optString("shopName", "").trim();
+            String reason = json.optString("reason", "").trim();
             JSONArray foodsArray = json.optJSONArray("foods");
             ArrayList<String> foodNames = new ArrayList<>();
-            if (foodsArray != null) {
+            ShopBean shop = DataRepository.findShopByName(shopName);
+
+            if (foodsArray != null && shop != null) {
                 for (int i = 0; i < foodsArray.length(); i++) {
-                    String name = foodsArray.optString(i);
-                    if (!name.trim().isEmpty()) {
+                    String name = foodsArray.optString(i).trim();
+                    if (!name.isEmpty() && belongsToShop(shop, name) && !foodNames.contains(name)) {
                         foodNames.add(name);
                     }
                 }
             }
-            return new AiRecommendationResult(shopName, foodNames, reason, content);
+
+            if (shop == null || foodNames.isEmpty() || isPlaceholderReason(reason)) {
+                return parseLooseResult(userPrompt, jsonText, content);
+            }
+            return new AiRecommendationResult(shop.getName(), foodNames, reason, content);
         } catch (JSONException ignored) {
-            return parseLooseResult(jsonText, content);
+            return parseLooseResult(userPrompt, jsonText, content);
         }
     }
 
-    private String extractJsonObject(String content) throws JSONException {
+    private String extractJsonObject(String content) {
         String clean = content == null ? "" : content.trim();
         clean = clean.replace("```json", "").replace("```", "").trim();
 
@@ -135,32 +155,43 @@ public class SiliconFlowService {
         return clean;
     }
 
-    private AiRecommendationResult parseLooseResult(String jsonText, String rawText) {
+    private AiRecommendationResult parseLooseResult(String userPrompt, String jsonText, String rawText) {
         String shopName = extractValue(jsonText, "shopName");
-        if (shopName.isEmpty()) {
-            shopName = extractValue(jsonText, "shopNameName");
-        }
         String reason = extractValue(jsonText, "reason");
-        ArrayList<String> foodNames = new ArrayList<>();
-
-        for (String food : DataRepository.allFoodNames()) {
-            if (jsonText.contains(food) || rawText.contains(food)) {
-                foodNames.add(food);
-            }
-        }
-
-        if (shopName.isEmpty()) {
-            for (String shop : DataRepository.allShopNames()) {
-                if (jsonText.contains(shop) || rawText.contains(shop)) {
-                    shopName = shop;
+        ShopBean shop = DataRepository.findShopByName(shopName);
+        if (shop == null) {
+            for (String knownShop : DataRepository.allShopNames()) {
+                if (jsonText.contains(knownShop) || rawText.contains(knownShop)) {
+                    shop = DataRepository.findShopByName(knownShop);
                     break;
                 }
             }
         }
-        if (reason.isEmpty()) {
-            reason = buildReason(shopName, foodNames);
+
+        if (shop == null) {
+            AiRecommendationResult localResult = buildRuleBasedRecommendation(userPrompt);
+            if (localResult != null) {
+                return localResult;
+            }
+            shop = DataRepository.firstShop();
         }
-        return new AiRecommendationResult(shopName, foodNames, reason, rawText);
+
+        ArrayList<String> foodNames = new ArrayList<>();
+        for (int i = 0; i < shop.getFoods().size(); i++) {
+            String foodName = shop.getFoods().get(i).getName();
+            if ((jsonText.contains(foodName) || rawText.contains(foodName)) && !foodNames.contains(foodName)) {
+                foodNames.add(foodName);
+            }
+        }
+
+        if (foodNames.isEmpty() && !shop.getFoods().isEmpty()) {
+            foodNames.add(shop.getFoods().get(0).getName());
+        }
+
+        if (isPlaceholderReason(reason)) {
+            reason = buildReason(shop.getName(), foodNames);
+        }
+        return new AiRecommendationResult(shop.getName(), foodNames, reason, rawText);
     }
 
     private String extractValue(String text, String key) {
@@ -177,14 +208,31 @@ public class SiliconFlowService {
         return text.substring(start, end).trim();
     }
 
+    private boolean isPlaceholderReason(String reason) {
+        String safe = reason == null ? "" : reason.trim().toLowerCase(Locale.ROOT);
+        return safe.isEmpty()
+                || safe.contains("推荐理由")
+                || safe.contains("字以内")
+                || safe.contains("80")
+                || safe.contains("both8");
+    }
+
+    private boolean belongsToShop(ShopBean shop, String foodName) {
+        for (int i = 0; i < shop.getFoods().size(); i++) {
+            if (shop.getFoods().get(i).getName().equals(foodName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private String buildReason(String shopName, ArrayList<String> foodNames) {
-        StringBuilder builder = new StringBuilder();
-        builder.append("AI 根据你的用餐需求");
+        StringBuilder builder = new StringBuilder("这份推荐更贴合你当前的口味需求");
         if (!shopName.isEmpty()) {
-            builder.append("推荐 ").append(shopName);
+            builder.append("，店铺选择了 ").append(shopName);
         }
         if (!foodNames.isEmpty()) {
-            builder.append("，搭配 ");
+            builder.append("，菜品包含 ");
             for (int i = 0; i < foodNames.size(); i++) {
                 if (i > 0) {
                     builder.append("、");
@@ -192,8 +240,67 @@ public class SiliconFlowService {
                 builder.append(foodNames.get(i));
             }
         }
-        builder.append("，价格和口味更适合当前需求。");
+        builder.append("。");
         return builder.toString();
+    }
+
+    private AiRecommendationResult buildRuleBasedRecommendation(String userPrompt) {
+        String prompt = userPrompt == null ? "" : userPrompt.trim().toLowerCase(Locale.ROOT);
+        if (prompt.isEmpty()) {
+            return null;
+        }
+
+        if (containsAny(prompt, "健身", "减脂", "增肌", "高蛋白", "轻食", "低脂")) {
+            return buildResult("元气轻食站",
+                    new String[]{"黑椒鸡排饭", "奥尔良鸡肉卷", "水果酸奶杯"},
+                    "更偏轻食和高蛋白，比较适合健身或控制饮食。");
+        }
+
+        if (containsAny(prompt, "清淡", "养胃", "热汤", "不辣")) {
+            return buildResult("暖心简餐",
+                    new String[]{"蒸蛋套餐", "玉米排骨汤", "番茄牛腩饭"},
+                    "口味更温和，汤饭搭配也更适合想吃清淡一点的时候。");
+        }
+
+        if (containsAny(prompt, "夜宵", "面", "粉")) {
+            return buildResult("一碗热面",
+                    new String[]{"红烧牛肉面", "酸辣粉"},
+                    "热面和粉类更适合夜宵，吃起来也更有饱腹感。");
+        }
+
+        if (containsAny(prompt, "辣", "重口", "下饭")) {
+            return buildResult("川味小馆",
+                    new String[]{"招牌麻辣香锅", "藤椒鸡腿饭"},
+                    "这家整体偏香辣重口，比较符合想吃辣和下饭的需求。");
+        }
+
+        return null;
+    }
+
+    private boolean containsAny(String prompt, String... keywords) {
+        for (String keyword : keywords) {
+            if (prompt.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private AiRecommendationResult buildResult(String shopName, String[] candidateFoods, String reason) {
+        ShopBean shop = DataRepository.findShopByName(shopName);
+        if (shop == null) {
+            return null;
+        }
+        ArrayList<String> foods = new ArrayList<>();
+        for (String candidate : candidateFoods) {
+            if (belongsToShop(shop, candidate)) {
+                foods.add(candidate);
+            }
+        }
+        if (foods.isEmpty() && !shop.getFoods().isEmpty()) {
+            foods.add(shop.getFoods().get(0).getName());
+        }
+        return new AiRecommendationResult(shop.getName(), foods, reason, "");
     }
 
     private int findMatchingBrace(String text, int start) {

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/pay_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg"
@@ -69,7 +70,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:gravity="center"
-            android:text="扫码后点击下方按钮完成测试支付"
+            android:text="扫码后点击下方按钮完成模拟支付"
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
     </LinearLayout>
@@ -80,24 +81,10 @@
         android:layout_height="54dp"
         android:layout_marginLeft="16dp"
         android:layout_marginRight="16dp"
-        android:layout_marginBottom="10dp"
+        android:layout_marginBottom="16dp"
         android:background="@drawable/bg_accent"
         android:gravity="center"
         android:text="我已扫码，模拟支付成功"
-        android:textColor="@color/white"
-        android:textSize="16sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/tv_to_history"
-        android:layout_width="match_parent"
-        android:layout_height="54dp"
-        android:layout_marginLeft="16dp"
-        android:layout_marginRight="16dp"
-        android:layout_marginBottom="16dp"
-        android:background="@drawable/bg_brand"
-        android:gravity="center"
-        android:text="查看历史订单"
         android:textColor="@color/white"
         android:textSize="16sp"
         android:textStyle="bold" />

@@ -20,6 +20,7 @@ import java.util.ArrayList;
 public class MainActivity extends AppCompatActivity {
     private final ArrayList<ShopBean> displayShops = new ArrayList<>();
     private ShopAdapter adapter;
+    private EditText etSearch;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,11 +30,15 @@ public class MainActivity extends AppCompatActivity {
         refreshShops("");
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        refreshShops(etSearch.getText().toString());
+    }
+
     private void initView() {
-        EditText etSearch = findViewById(R.id.et_search);
+        etSearch = findViewById(R.id.et_search);
         RecyclerView rvShop = findViewById(R.id.rv_shop);
-        TextView tvHistory = findViewById(R.id.tv_history);
-        TextView tvAi = findViewById(R.id.tv_ai);
 
         rvShop.setLayoutManager(new LinearLayoutManager(this));
         adapter = new ShopAdapter(displayShops, shop -> {
@@ -42,6 +47,8 @@ public class MainActivity extends AppCompatActivity {
             startActivity(intent);
         });
         rvShop.setAdapter(adapter);
+
+        bindBottomNav();
 
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override
@@ -57,9 +64,19 @@ public class MainActivity extends AppCompatActivity {
             public void afterTextChanged(Editable s) {
             }
         });
+    }
 
-        tvAi.setOnClickListener(v -> startActivity(new Intent(this, RecommendActivity.class)));
-        tvHistory.setOnClickListener(v -> startActivity(new Intent(this, OrdersActivity.class)));
+    private void bindBottomNav() {
+        TextView tvHome = findViewById(R.id.nav_home);
+        TextView tvRecommend = findViewById(R.id.nav_recommend);
+        TextView tvOrder = findViewById(R.id.nav_order);
+        TextView tvMine = findViewById(R.id.nav_mine);
+
+        tvRecommend.setOnClickListener(v -> startActivity(new Intent(this, RecommendActivity.class)));
+        tvOrder.setOnClickListener(v -> startActivity(new Intent(this, OrderCenterActivity.class)));
+        tvMine.setOnClickListener(v -> startActivity(new Intent(this, MyActivity.class)));
+
+        tvHome.setSelected(true);
     }
 
     private void refreshShops(String keyword) {

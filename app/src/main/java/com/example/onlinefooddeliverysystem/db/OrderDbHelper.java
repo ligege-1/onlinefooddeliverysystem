@@ -6,6 +6,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
+import com.example.onlinefooddeliverysystem.data.UserManager;
 import com.example.onlinefooddeliverysystem.model.CartItem;
 import com.example.onlinefooddeliverysystem.model.OrderBean;
 import com.example.onlinefooddeliverysystem.util.FormatUtils;
@@ -14,17 +15,22 @@ import java.util.ArrayList;
 
 public class OrderDbHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "orders.db";
-    private static final int DB_VERSION = 1;
+    private static final int DB_VERSION = 2;
     private static final String TABLE_ORDER = "order_record";
+
+    private final Context appContext;
 
     public OrderDbHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
+        this.appContext = context.getApplicationContext();
+        migrateLegacyOrdersForCurrentUser();
     }
 
     @Override
     public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE " + TABLE_ORDER + " (" +
                 "_id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "user_key TEXT," +
                 "shop_name TEXT," +
                 "address TEXT," +
                 "total_price INTEGER," +
@@ -36,13 +42,15 @@ public class OrderDbHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_ORDER);
-        onCreate(db);
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE " + TABLE_ORDER + " ADD COLUMN user_key TEXT");
+        }
     }
 
     public long saveOrder(OrderBean order) {
         SQLiteDatabase db = getWritableDatabase();
         ContentValues values = new ContentValues();
+        values.put("user_key", currentUserKey());
         values.put("shop_name", order.getShopName());
         values.put("address", order.getAddress());
         values.put("total_price", order.getTotalPrice());
@@ -58,7 +66,15 @@ public class OrderDbHelper extends SQLiteOpenHelper {
     public ArrayList<OrderBean> getOrders() {
         ArrayList<OrderBean> orders = new ArrayList<>();
         SQLiteDatabase db = getReadableDatabase();
-        Cursor cursor = db.query(TABLE_ORDER, null, null, null, null, null, "_id DESC");
+        Cursor cursor = db.query(
+                TABLE_ORDER,
+                null,
+                "user_key=?",
+                new String[]{currentUserKey()},
+                null,
+                null,
+                "_id DESC"
+        );
         while (cursor.moveToNext()) {
             long id = cursor.getLong(cursor.getColumnIndexOrThrow("_id"));
             String shopName = cursor.getString(cursor.getColumnIndexOrThrow("shop_name"));
@@ -77,12 +93,23 @@ public class OrderDbHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put("status", status);
-        db.update(TABLE_ORDER, values, "_id=?", new String[]{String.valueOf(orderId)});
+        db.update(TABLE_ORDER, values, "_id=? AND user_key=?", new String[]{String.valueOf(orderId), currentUserKey()});
     }
 
     public void clearOrders() {
         SQLiteDatabase db = getWritableDatabase();
-        db.delete(TABLE_ORDER, null, null);
+        db.delete(TABLE_ORDER, "user_key=?", new String[]{currentUserKey()});
+    }
+
+    private void migrateLegacyOrdersForCurrentUser() {
+        SQLiteDatabase db = getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put("user_key", currentUserKey());
+        db.update(TABLE_ORDER, values, "user_key IS NULL OR user_key=''", null);
+    }
+
+    private String currentUserKey() {
+        return UserManager.getInstance().getCurrentUserStorageKey(appContext);
     }
 
     private String toItemsText(ArrayList<CartItem> items) {

@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.onlinefooddeliverysystem.R;
 import com.example.onlinefooddeliverysystem.data.CartManager;
 import com.example.onlinefooddeliverysystem.model.CartItem;
+import com.example.onlinefooddeliverysystem.model.ShopBean;
 import com.example.onlinefooddeliverysystem.util.FormatUtils;
 
 import java.util.List;
@@ -46,8 +47,11 @@ public class CartAdapter extends RecyclerView.Adapter<CartAdapter.CartViewHolder
         holder.tvPrice.setText(FormatUtils.price(item.getTotalPrice()));
         holder.tvCount.setText("x" + item.getCount());
         holder.btnAdd.setOnClickListener(v -> {
-            CartManager.getInstance().addFood(item.getFood());
-            listener.onCartChanged();
+            ShopBean shop = CartManager.getInstance().getCurrentShop();
+            if (shop != null) {
+                CartManager.getInstance().addFood(shop, item.getFood());
+                listener.onCartChanged();
+            }
         });
         holder.btnMinus.setOnClickListener(v -> {
             CartManager.getInstance().decreaseFood(item.getFood());

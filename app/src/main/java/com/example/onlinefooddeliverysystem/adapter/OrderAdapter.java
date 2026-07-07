@@ -43,12 +43,8 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
         holder.tvAddress.setText(order.getAddress());
         holder.tvPrice.setText(FormatUtils.price(order.getTotalPrice()));
         holder.tvStatus.setText(order.getStatus());
-        holder.tvAction.setText(pending ? "点击继续支付" : "");
-        holder.itemView.setOnClickListener(v -> {
-            if (pending) {
-                listener.onOrderClick(order);
-            }
-        });
+        holder.tvAction.setText(pending ? "点击继续支付" : "点击查看订单");
+        holder.itemView.setOnClickListener(v -> listener.onOrderClick(order));
     }
 
     @Override
